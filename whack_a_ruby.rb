@@ -1,35 +1,46 @@
 # frozen_string_literal: true
 
 require 'gosu'
+require_relative 'moving_element'
 
 # WhackARuby Class
 class WhackARuby < Gosu::Window
-  def initialize(window_width = 800, window_height = 600, velocity = 5)
+  RUBY_IMAGE = { width: 50, height: 43, img: Gosu::Image.new('images/ruby.png') }.freeze
+  ELIXIR_IMAGE = { width: 50, height: 50, img: Gosu::Image.new('images/elixir.png') }.freeze
+  HAMMER_IMAGE = { width: 60, height: 60, img: Gosu::Image.new('images/hammer.png') }.freeze
+
+  def initialize(window_width = 800, window_height = 600, velocity = 5, nb_click_icons = 3, nb_unclick_icons= 2)
     @window_size = { width: window_width, height: window_height }
     super(window_width, window_height)
     self.caption = 'Whack the Ruby!'
-    @ruby_image = { width: 50, height: 43, img: Gosu::Image.new('images/ruby.png') }
-    @elixir_image = { width: 50, height: 50, img: Gosu::Image.new('images/elixir.png') }
-    @hammer_image = { width: 60, height: 60, img: Gosu::Image.new('images/hammer.png') }
+
+    @clickable_icons = []
+    @unclickable_icons = []
+    (1..nb_click_icons).each do |_i|
+      velocity_x = [-1, 1].sample * velocity
+      velocity_y = [-1, 1].sample * velocity
+      @clickable_icons << MovingElement.new(
+        RUBY_IMAGE,
+        rand(RUBY_IMAGE[:width] + 1...window_width - RUBY_IMAGE[:width]),
+        rand(RUBY_IMAGE[:height] + 1...window_height - RUBY_IMAGE[:height]),
+        velocity_x,
+        velocity_y
+      )
+    end
+    (1..nb_unclick_icons).each do |_i|
+      velocity_x = [-1, 1].sample * velocity
+      velocity_y = [-1, 1].sample * velocity
+      @unclickable_icons << MovingElement.new(
+        ELIXIR_IMAGE,
+        rand(ELIXIR_IMAGE[:width] + 1...window_width - ELIXIR_IMAGE[:width]),
+        rand(ELIXIR_IMAGE[:height] + 1...window_height - ELIXIR_IMAGE[:height]),
+        velocity_x,
+        velocity_y
+      )
+    end
     @fonts = {
       score: Gosu::Font.new(30),
       text: Gosu::Font.new(50)
-    }
-    @positions = {
-      ruby_x: rand(@ruby_image[:width] + 1...window_width - @ruby_image[:width]),
-      ruby_y: rand(@ruby_image[:height] + 1...window_height - @ruby_image[:height]),
-      elixir_x: rand(@elixir_image[:width] + 1...window_width - @elixir_image[:width]),
-      elixir_y: rand(@elixir_image[:height] + 1...window_height - @elixir_image[:height])
-    }
-    @velocities = {
-      ruby_x: velocity,
-      ruby_y: velocity,
-      elixir_x: velocity,
-      elixir_y: velocity
-    }
-    @visible = {
-      ruby: 0,
-      elixir: 0
     }
     @hit = 0
     @score = 0
@@ -39,21 +50,25 @@ class WhackARuby < Gosu::Window
   end
 
   def draw
-    if @visible[:ruby].positive?
-      @ruby_image[:img].draw(
-        @positions[:ruby_x] - @ruby_image[:width] / 2,
-        @positions[:ruby_y] - @ruby_image[:height] / 2,
+    @clickable_icons.each do |icon|
+      next unless icon.visible.positive?
+
+      icon.image[:img].draw(
+        icon.position_x - icon.image[:width] / 2,
+        icon.position_y - icon.image[:height] / 2,
         2
       )
     end
-    if @visible[:elixir].positive?
-      @elixir_image[:img].draw(
-        @positions[:elixir_x] - @elixir_image[:width] / 2,
-        @positions[:elixir_y] - @elixir_image[:height] / 2,
-        1
+    @unclickable_icons.each do |icon|
+      next unless icon.visible.positive?
+
+      icon.image[:img].draw(
+        icon.position_x - icon.image[:width] / 2,
+        icon.position_y - icon.image[:height] / 2,
+        2
       )
     end
-    @hammer_image[:img].draw(mouse_x - 40, mouse_y - 10, 2)
+    HAMMER_IMAGE[:img].draw(mouse_x - 40, mouse_y - 10, 2)
     color = case @hit
             when 1
               Gosu::Color::GREEN
@@ -90,28 +105,37 @@ class WhackARuby < Gosu::Window
       @window_size[:height] / 2 + 30,
       4
     )
-    @visible[:ruby] = 20
+    @clickable_icons.each do |icon|
+      icon.visible = 20
+    end
+    @unclickable_icons.each do |icon|
+      icon.visible = 20
+    end
   end
 
   def update
     return unless @playing
 
-    @positions[:ruby_x] += @velocities[:ruby_x]
-    @positions[:ruby_y] += @velocities[:ruby_y]
-    @velocities[:ruby_x] *= -1 if @positions[:ruby_x] + @ruby_image[:width] / 2 > @window_size[:width] ||
-                                  (@positions[:ruby_x] - @ruby_image[:width] / 2).negative?
-    @velocities[:ruby_y] *= -1 if @positions[:ruby_y] + @ruby_image[:height] / 2 > @window_size[:height] ||
-                                  (@positions[:ruby_y] - @ruby_image[:height] / 2).negative?
-    @positions[:elixir_x] -= @velocities[:elixir_x]
-    @positions[:elixir_y] -= @velocities[:elixir_y]
-    @velocities[:elixir_x] *= -1 if @positions[:elixir_x] + @elixir_image[:width] / 2 > @window_size[:width] ||
-                                    (@positions[:elixir_x] - @elixir_image[:width] / 2).negative?
-    @velocities[:elixir_y] *= -1 if @positions[:elixir_y] + @elixir_image[:height] / 2 > @window_size[:height] ||
-                                    (@positions[:elixir_y] - @elixir_image[:height] / 2).negative?
-    @visible[:ruby] -= 1
-    @visible[:ruby] = 40 if @visible[:ruby] < -10 && rand < 0.05
-    @visible[:elixir] -= 1
-    @visible[:elixir] = 40 if @visible[:elixir] < -10 && rand < 0.05
+    @clickable_icons.each do |icon|
+      icon.position_x += icon.velocity_x
+      icon.position_y += icon.velocity_y
+      icon.velocity_x *= -1 if icon.position_x + icon.image[:width] / 2 > @window_size[:width] ||
+                               (icon.position_x - icon.image[:width] / 2).negative?
+      icon.velocity_y *= -1 if icon.position_y + icon.image[:height] / 2 > @window_size[:height] ||
+                               (icon.position_y - icon.image[:height] / 2).negative?
+      icon.visible -= 1
+      icon.visible = 40 if icon.visible < -10 && rand < 0.05
+    end
+    @unclickable_icons.each do |icon|
+      icon.position_x += icon.velocity_x
+      icon.position_y += icon.velocity_y
+      icon.velocity_x *= -1 if icon.position_x + icon.image[:width] / 2 > @window_size[:width] ||
+        (icon.position_x - icon.image[:width] / 2).negative?
+      icon.velocity_y *= -1 if icon.position_y + icon.image[:height] / 2 > @window_size[:height] ||
+        (icon.position_y - icon.image[:height] / 2).negative?
+      icon.visible -= 1
+      icon.visible = 40 if icon.visible < -10 && rand < 0.05
+    end
     @time_left = (@duration - ((Gosu.milliseconds - @start_time) / 1000))
     @playing = false if @time_left.negative?
   end
@@ -121,21 +145,22 @@ class WhackARuby < Gosu::Window
   end
 
   def button_down(id)
-    # return unless @playing && id == Gosu::MsLeft
-
     if @playing
       if id == Gosu::MsLeft
-        if Gosu.distance(mouse_x, mouse_y, @positions[:ruby_x], @positions[:ruby_y]) < 55 && @visible[:ruby].positive?
-          @hit = 1
-          @score += 5
-        else
-          @hit = -1
-          @score -= 1
+        touched = false
+        @clickable_icons.each do |icon|
+          if Gosu.distance(mouse_x, mouse_y, icon.position_x, icon.position_y) < 55 && icon.visible.positive?
+            touched = true
+          end
         end
+        @hit = touched ? 1 : -1
+        @score += touched ? 5 : -1
       end
     elsif id == Gosu::KbSpace
       @playing = true
-      @visible[:ruby] = -10
+      @clickable_icons.each do |icon|
+        icon.visible = -10
+      end
       @start_time = Gosu.milliseconds
       @score = 0
     end
